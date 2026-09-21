@@ -1,6 +1,19 @@
 {
   "[solidity]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "editor.quickSuggestions": {
+      "other": "on",
+      "comments": "off",
+      "strings": "off"
+    },
+    "editor.quickSuggestionsDelay": 100,
+    "editor.suggestOnTriggerCharacters": true,
+    "editor.parameterHints.enabled": false,
+    "editor.tabCompletion": "on",
+    "editor.snippetSuggestions": "top",
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
+    "editor.wordBasedSuggestions": "matchingDocuments",
+    "editor.inlineSuggest.enabled": true
   }
 }
