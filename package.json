@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "prettier --write \"contracts/**/*.sol\"",
+    "format:check": "prettier --check \"contracts/**/*.sol\""
   },
   "repository": {
     "type": "git",
@@ -31,6 +33,8 @@
     "forge-std": "github:foundry-rs/forge-std#v1.16.2",
     "hardhat": "^3.17.0",
     "mocha": "^11.8.0",
+    "prettier": "^3.9.8",
+    "prettier-plugin-solidity": "^2.4.1",
     "typescript": "~6.0.3"
   }
 }

@@ -1,0 +1,9 @@
+node_modules/
+artifacts/
+cache/
+types/
+dist/
+bundle/
+coverage/
+snapshots/
+package-lock.json
