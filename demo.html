@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>众筹工厂 - 链上验证</title>
+  <!-- ethers.js v6 (CDN)，加载失败时回退备用源 -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.16.0/dist/ethers.umd.min.js"></script>
+  <script>
+    if (typeof ethers === 'undefined') {
+      document.write('<script src="https://unpkg.com/ethers@6.16.0/dist/ethers.umd.min.js"><\/script>');
+    }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+      min-height: 100vh; padding: 24px; color: #e6edf3;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+    .header { text-align: center; padding: 24px; }
+    .header h1 { font-size: 1.8em; margin-bottom: 8px; }
+    .header p { opacity: 0.75; font-size: 0.95em; }
+    .card {
+      background: #1b2a33; border: 1px solid #2f4550; border-radius: 14px;
+      padding: 22px; margin-bottom: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .card h2 { font-size: 1.1em; margin-bottom: 16px; color: #7fd1ff; display: flex; align-items: center; gap: 8px; }
+    .card h2::before { content: "▸"; color: #4fc3f7; }
+    button {
+      padding: 11px 22px; font-size: 15px; font-weight: 600; border: none; border-radius: 10px;
+      cursor: pointer; transition: all 0.2s ease; color: #fff;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-connect { background: linear-gradient(135deg, #f6851b, #e2761b); min-width: 200px; }
+    .btn-primary { background: linear-gradient(135deg, #2d89ef, #5b6df0); }
+    .btn-ghost { background: #2f4550; }
+    button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    input {
+      flex: 1; min-width: 140px; padding: 11px 12px; font-size: 15px;
+      background: #0d1a21; color: #e6edf3; border: 1px solid #2f4550; border-radius: 10px;
+    }
+    input:focus { outline: none; border-color: #4fc3f7; }
+    input.mono { font-family: 'SF Mono', Consolas, monospace; font-size: 0.85em; }
+    label { display: block; font-size: 0.82em; color: #9fb3c0; margin-bottom: 6px; }
+    .field { flex: 1; min-width: 150px; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge-ok { background: #14321f; color: #6ee7a0; }
+    .badge-err { background: #3a1414; color: #ff8f8f; }
+    .badge-info { background: #16324a; color: #7fd1ff; }
+    .stat { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #2f4550; }
+    .stat:last-child { border-bottom: none; }
+    .stat .k { color: #9fb3c0; font-size: 0.9em; }
+    .stat .v { font-family: 'SF Mono', Consolas, monospace; font-size: 0.9em; word-break: break-all; text-align: right; max-width: 62%; }
+    .big-num { font-size: 2em; font-weight: 700; text-align: center; color: #7fd1ff; padding: 8px; }
+    ul.campaigns { list-style: none; }
+    ul.campaigns li {
+      background: #0d1a21; border: 1px solid #2f4550; border-radius: 10px;
+      padding: 14px; margin-bottom: 10px;
+    }
+    ul.campaigns a { color: #7fd1ff; text-decoration: none; font-family: 'SF Mono', Consolas, monospace; font-size: 0.85em; word-break: break-all; }
+    ul.campaigns .meta { font-size: 0.85em; color: #9fb3c0; margin-top: 6px; }
+    #log { max-height: 320px; overflow-y: auto; background: #0a1218; padding: 14px; border-radius: 10px;
+      font-family: 'SF Mono', Consolas, monospace; font-size: 13px; line-height: 1.6; }
+    .log-line { padding: 4px 0; border-bottom: 1px dashed #1f3039; }
+    .log-time { color: #6b7f8c; margin-right: 8px; }
+    .c-success { color: #6ee7a0; } .c-error { color: #ff8f8f; } .c-event { color: #ffc46b; } .c-info { color: #7fd1ff; }
+    .warn { background: #3a2e12; border: 1px solid #a8781f; color: #ffd97a; border-radius: 10px; padding: 14px; margin-bottom: 18px; display: none; }
+    .warn code { background: #0d1a21; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🦊 众筹工厂 · 链上验证</h1>
+      <p>连接 MetaMask，读取 / 创建 Sepolia 上的众筹活动</p>
+    </div>
+
+    <!-- file:// 协议警告 -->
+    <div class="warn" id="fileWarn">
+      <strong>检测到 file:// 协议，MetaMask 无法工作。</strong><br>
+      请用本地服务器运行，例如在项目目录执行：<code>python3 -m http.server 8080</code>，然后访问 <code>http://localhost:8080/demo.html</code>
+    </div>
+
+    <!-- 钱包连接 -->
+    <div class="card">
+      <h2>钱包连接</h2>
+      <div class="row">
+        <button class="btn-connect" id="connectBtn">连接 MetaMask</button>
+        <span id="accountInfo" style="font-family: monospace; font-size: 0.85em; word-break: break-all;"></span>
+      </div>
+      <div class="stat" style="margin-top: 12px; border: none;">
+        <span class="k">网络</span>
+        <span class="v" id="networkStatus">未连接</span>
+      </div>
+    </div>
+
+    <!-- 合约信息 -->
+    <div class="card">
+      <h2>合约信息</h2>
+      <div class="field" style="margin-bottom: 12px;">
+        <label>工厂合约地址</label>
+        <div class="row">
+          <input class="mono" id="factoryAddress" value="0xCc1832dc5Ca823CAbaf79c242fa71C805ebF6470">
+          <button class="btn-ghost" id="reloadBtn">读取</button>
+        </div>
+      </div>
+      <div class="stat"><span class="k">合约状态</span><span class="v" id="contractStatus">未验证</span></div>
+      <div class="stat"><span class="k">活动总数</span><span class="v" id="campaignCount">-</span></div>
+    </div>
+
+    <!-- 创建活动 -->
+    <div class="card">
+      <h2>创建活动</h2>
+      <div class="row" style="margin-bottom: 12px;">
+        <div class="field"><label>活动名称</label><input id="nameInput" placeholder="例如：为灾区捐款"></div>
+        <div class="field"><label>目标金额（ETH）</label><input id="goalInput" placeholder="例如：0.01"></div>
+        <div class="field"><label>持续天数（1–90）</label><input id="durationInput" placeholder="例如：30"></div>
+      </div>
+      <button class="btn-primary" id="createBtn">创建众筹活动</button>
+      <div style="font-size: 0.8em; color: #9fb3c0; margin-top: 8px;">
+        ⚠️ 目标金额以 ETH 填写，页面会自动换算为 wei；创建会消耗 gas，请确认钱包已切换到 Sepolia 且持有测试 ETH。
+      </div>
+    </div>
+
+    <!-- 活动列表 -->
+    <div class="card">
+      <h2>活动列表</h2>
+      <div class="row" style="margin-bottom: 12px;">
+        <button class="btn-ghost" id="allBtn">全部活动</button>
+        <button class="btn-ghost" id="mineBtn">我创建的</button>
+      </div>
+      <div id="campaignList"><span style="color:#6b7f8c;">尚未加载</span></div>
+    </div>
+
+    <!-- 事件日志 -->
+    <div class="card">
+      <h2>事件日志</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script>
+    // ============ ABI（与已部署合约一致） ============
+    const factoryAbi = [
+      {"inputs":[],"name":"getCampaignCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"getCampaigns","outputs":[{"internalType":"address[]","name":"","type":"address[]"}],"stateMutability":"view","type":"function"},
+      {"inputs":[{"internalType":"address","name":"user","type":"address"}],"name":"getUserCampaigns","outputs":[{"internalType":"address[]","name":"","type":"address[]"}],"stateMutability":"view","type":"function"},
+      {"inputs":[{"internalType":"string","name":"_name","type":"string"},{"internalType":"uint256","name":"_goal","type":"uint256"},{"internalType":"uint256","name":"_durationInDays","type":"uint256"}],"name":"createCampaign","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},
+      {"anonymous":false,"inputs":[
+        {"indexed":true,"internalType":"address","name":"creator","type":"address"},
+        {"indexed":true,"internalType":"address","name":"campaign","type":"address"},
+        {"indexed":false,"internalType":"string","name":"name","type":"string"},
+        {"indexed":false,"internalType":"uint256","name":"goal","type":"uint256"},
+        {"indexed":false,"internalType":"uint256","name":"durationInDays","type":"uint256"}
+      ],"name":"CampaignCreated","type":"event"}
+    ];
+
+    const campaignAbi = [
+      {"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"goal","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"deadline","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"state","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"totalRaised","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}
+    ];
+
+    const SEPOLIA_CHAIN_ID = 11155111;
+    const SEPOLIA_HEX = '0xaa36a7';
+    const STATE_NAMES = ['准备中', '进行中', '成功', '失败', '已关闭'];
+
+    let provider, signer, factory, account;
+
+    // ============ 工具 ============
+    function getMetaMaskProvider() {
+      if (!window.ethereum) return null;
+      if (window.ethereum.providers && Array.isArray(window.ethereum.providers)) {
+        return window.ethereum.providers.find(p => p.isMetaMask) || window.ethereum;
+      }
+      return window.ethereum;
+    }
+
+    function addLog(msg, type = 'info') {
+      const log = document.getElementById('log');
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      const t = new Date().toLocaleTimeString();
+      line.innerHTML = `<span class="log-time">[${t}]</span><span class="c-${type}">${msg}</span>`;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function shortAddr(a) {
+      if (!a) return '';
+      return a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : a;
+    }
+
+    // ============ 网络 ============
+    async function ensureSepolia() {
+      const ethereum = getMetaMaskProvider();
+      const chainId = await ethereum.request({ method: 'eth_chainId' });
+      if (parseInt(chainId, 16) === SEPOLIA_CHAIN_ID) {
+        document.getElementById('networkStatus').textContent = 'Sepolia (11155111)';
+        return true;
+      }
+      addLog(`当前链 ${parseInt(chainId, 16)}，正在切换到 Sepolia...`, 'info');
+      try {
+        await ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: SEPOLIA_HEX }] });
+      } catch (err) {
+        if (err.code === 4902) {
+          await ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: SEPOLIA_HEX, chainName: 'Sepolia',
+              nativeCurrency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
+              rpcUrls: ['https://rpc.sepolia.org'], blockExplorerUrls: ['https://sepolia.etherscan.io']
+            }]
+          });
+        } else {
+          throw err;
+        }
+      }
+      document.getElementById('networkStatus').textContent = 'Sepolia (11155111)';
+      return true;
+    }
+
+    // ============ 连接钱包 ============
+    async function connectMetaMask() {
+      const ethereum = getMetaMaskProvider();
+      if (!ethereum) {
+        alert('未检测到 MetaMask，请先安装扩展');
+        window.open('https://metamask.io/download/', '_blank');
+        return;
+      }
+      const btn = document.getElementById('connectBtn');
+      try {
+        btn.disabled = true; btn.textContent = '连接中...';
+        await ethereum.request({ method: 'eth_requestAccounts' });
+        await ensureSepolia();
+
+        provider = new ethers.BrowserProvider(ethereum);
+        signer = await provider.getSigner();
+        account = await signer.getAddress();
+
+        document.getElementById('accountInfo').textContent = shortAddr(account);
+        btn.textContent = '已连接';
+        addLog(`MetaMask 连接成功：${account}`, 'success');
+
+        await loadFactory();
+      } catch (err) {
+        btn.disabled = false; btn.textContent = '连接 MetaMask';
+        if (err.code === 4001) { addLog('用户拒绝了连接请求', 'error'); }
+        else { addLog('连接失败：' + err.message, 'error'); }
+      }
+    }
+
+    // ============ 加载工厂合约 ============
+    async function loadFactory() {
+      const addr = document.getElementById('factoryAddress').value.trim();
+      if (!ethers.isAddress(addr)) {
+        document.getElementById('contractStatus').textContent = '地址无效';
+        addLog('无效的工厂地址', 'error');
+        return;
+      }
+      if (!signer) { addLog('请先连接钱包', 'error'); return; }
+
+      try {
+        const code = await provider.getCode(addr);
+        if (code === '0x') {
+          document.getElementById('contractStatus').textContent = '地址无合约';
+          addLog('该地址没有部署合约', 'error');
+          return;
+        }
+        factory = new ethers.Contract(addr, factoryAbi, signer);
+        document.getElementById('contractStatus').innerHTML = '<span class="badge badge-ok">已验证</span>';
+        addLog(`工厂合约已加载：${addr}`, 'success');
+        setupEventListeners();
+        await refreshAll();
+      } catch (err) {
+        document.getElementById('contractStatus').textContent = '验证失败';
+        addLog('加载工厂失败：' + err.message, 'error');
+      }
+    }
+
+    // ============ 事件监听 ============
+    function setupEventListeners() {
+      if (!factory) return;
+      factory.on('CampaignCreated', (creator, campaign, name, goal, durationInDays) => {
+        addLog(`📢 CampaignCreated：${shortAddr(creator)} 创建了「${name}」，目标 ${ethers.formatEther(goal)} ETH`, 'event');
+        refreshAll();
+      });
+    }
+
+    // ============ 读取数据 ============
+    async function refreshAll(scope = 'all') {
+      if (!factory) return;
+      try {
+        const count = await factory.getCampaignCount();
+        document.getElementById('campaignCount').textContent = count.toString();
+
+        let list;
+        if (scope === 'mine' && account) {
+          list = await factory.getUserCampaigns(account);
+        } else {
+          list = await factory.getCampaigns();
+        }
+        await renderCampaigns(list);
+      } catch (err) {
+        addLog('读取失败：' + err.message, 'error');
+      }
+    }
+
+    async function renderCampaigns(addrs) {
+      const wrap = document.getElementById('campaignList');
+      if (!addrs || addrs.length === 0) {
+        wrap.innerHTML = '<span style="color:#6b7f8c;">暂无活动</span>';
+        return;
+      }
+      let html = '<ul class="campaigns">';
+      for (const addr of addrs) {
+        html += `<li>`;
+        try {
+          const c = new ethers.Contract(addr, campaignAbi, provider);
+          const [name, goal, deadline, state, totalRaised, owner] = await Promise.all([
+            c.name(), c.goal(), c.deadline(), c.state(), c.totalRaised(), c.owner()
+          ]);
+          const stateName = STATE_NAMES[Number(state)] || `未知(${state})`;
+          const dl = new Date(Number(deadline) * 1000).toLocaleString();
+          html += `
+            <a href="https://sepolia.etherscan.io/address/${addr}" target="_blank">${addr}</a>
+            <div class="meta">
+              名称：${name} &nbsp;|&nbsp; 目标：${ethers.formatEther(goal)} ETH
+              &nbsp;|&nbsp; 已筹：${ethers.formatEther(totalRaised)} ETH
+              &nbsp;|&nbsp; 状态：${stateName}
+            </div>
+            <div class="meta">创建者：${shortAddr(owner)} &nbsp;|&nbsp; 截止：${dl}</div>
+          `;
+        } catch (err) {
+          html += `<a href="https://sepolia.etherscan.io/address/${addr}" target="_blank">${addr}</a>`;
+          html += `<div class="meta">详情读取失败：${err.message}</div>`;
+        }
+        html += `</li>`;
+      }
+      html += '</ul>';
+      wrap.innerHTML = html;
+    }
+
+    // ============ 创建活动 ============
+    async function createCampaign() {
+      if (!factory || !signer) { alert('请先连接钱包并加载合约'); return; }
+      const name = document.getElementById('nameInput').value.trim();
+      const goalEth = document.getElementById('goalInput').value.trim();
+      const duration = document.getElementById('durationInput').value.trim();
+
+      if (!name) { alert('请输入活动名称'); return; }
+      if (!goalEth || isNaN(Number(goalEth)) || Number(goalEth) <= 0) { alert('请输入有效的目标金额'); return; }
+      const days = Number(duration);
+      if (!duration || !Number.isInteger(days) || days < 1 || days > 90) { alert('持续时间需为 1–90 的整数'); return; }
+
+      let goalWei;
+      try { goalWei = ethers.parseEther(goalEth); } catch (e) { alert('目标金额格式错误'); return; }
+
+      const btn = document.getElementById('createBtn');
+      btn.disabled = true; btn.textContent = '创建中...';
+      try {
+        const tx = await factory.createCampaign(name, goalWei, days);
+        addLog(`交易已发送：${tx.hash}`, 'info');
+        const receipt = await tx.wait();
+        if (receipt && receipt.status === 1) {
+          addLog(`✅ 活动创建成功，区块 ${receipt.blockNumber}，gas ${receipt.gasUsed}`, 'success');
+        } else {
+          addLog('交易被回滚', 'error');
+        }
+        await refreshAll();
+      } catch (err) {
+        if (err.code === 4001) addLog('用户拒绝了交易', 'error');
+        else addLog('创建失败：' + err.message, 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = '创建众筹活动';
+      }
+    }
+
+    // ============ 事件绑定 ============
+    document.getElementById('connectBtn').addEventListener('click', connectMetaMask);
+    document.getElementById('reloadBtn').addEventListener('click', loadFactory);
+    document.getElementById('createBtn').addEventListener('click', createCampaign);
+    document.getElementById('allBtn').addEventListener('click', () => refreshAll('all'));
+    document.getElementById('mineBtn').addEventListener('click', () => refreshAll('mine'));
+
+    const ethereum = getMetaMaskProvider();
+    if (ethereum) {
+      ethereum.on('accountsChanged', () => location.reload());
+      ethereum.on('chainChanged', () => location.reload());
+    }
+
+    // ============ 初始化 ============
+    function init() {
+      if (window.location.protocol === 'file:') {
+        document.getElementById('fileWarn').style.display = 'block';
+        addLog('检测到 file:// 协议，请改用本地服务器运行', 'error');
+        return;
+      }
+      addLog('页面已加载，等待连接 MetaMask...', 'info');
+    }
+    init();
+  </script>
+</body>
+</html>
