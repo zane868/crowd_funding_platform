@@ -55,7 +55,7 @@ contract CrowdfundingCampaign {
 
     constructor(
         address _owner,
-        string _name,
+        string memory _name,
         uint _goal,
         uint _durationInDays
     ) {
