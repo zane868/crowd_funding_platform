@@ -11,11 +11,20 @@ import "./CrowdfundingCampaign.sol";
  * @notice 使用工厂模式
  */
 contract CrowdfundingFactory {
-    /// @dev 所有已场景的众筹合约
+    /// @dev 所有已创建的众筹合约
     CrowdfundingCampaign[] public campaigns;
 
-    /// @dev 用户的的合约地址的索引,campaigns数组的索引位
+    /// @dev 用户的合约地址的索引,campaigns数组的索引位
     mapping(address => uint[]) public userCampaigns;
+
+    /// @dev 创建众筹合约时触发的事件
+    event CampaignCreated(
+        address indexed creator,
+        address indexed campaign,
+        string name,
+        uint goal,
+        uint durationInDays
+    );
 
     /**
      *  创建一个众筹合约
@@ -23,7 +32,7 @@ contract CrowdfundingFactory {
      * @param _goal  额度
      * @param _durationInDays 众筹时间
      */
-    function CampaignCreated(
+    function createCampaign(
         string memory _name,
         uint _goal,
         uint _durationInDays
@@ -42,6 +51,15 @@ contract CrowdfundingFactory {
         //将索引存起来
         uint[] storage cs = userCampaigns[msg.sender];
         cs.push(campaigns.length - 1);
+
+        //触发创建事件
+        emit CampaignCreated(
+            msg.sender,
+            address(campaign),
+            _name,
+            _goal,
+            _durationInDays
+        );
 
         return address(campaign);
     }
