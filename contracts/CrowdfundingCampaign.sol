@@ -33,7 +33,7 @@ contract CrowdfundingCampaign {
     mapping(address => uint) public contributions;
 
     /// @dev 所有贡献者名单
-    address[] public contributionrs;
+    address[] public contributors;
 
     /// @dev 所有者
     modifier onlyOwner() {
@@ -65,7 +65,7 @@ contract CrowdfundingCampaign {
         );
         require(
             bytes(_name).length > 0,
-            "CrowdfundingCampaign constructor invalid owner"
+            "CrowdfundingCampaign constructor invalid name"
         );
         require(
             _goal > 0,
