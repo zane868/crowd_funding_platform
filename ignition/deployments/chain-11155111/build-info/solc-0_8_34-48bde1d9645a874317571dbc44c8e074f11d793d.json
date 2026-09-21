@@ -1,0 +1,52 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_34-48bde1d9645a874317571dbc44c8e074f11d793d",
+  "solcVersion": "0.8.34",
+  "solcLongVersion": "0.8.34+commit.80d5c536",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.17.0"
+  },
+  "userSourceNameMap": {
+    "contracts/CrowdfundingFactory.sol": "project/contracts/CrowdfundingFactory.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "osaka",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/CrowdfundingCampaign.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract CrowdfundingCampaign {\n    /// @dev 枚举类型：定义众筹活动所有可能的状态\n    enum State {\n        Preparing, // 准备中：活动已创建但尚未开始\n        Active, // 进行中：活动正在接受资金贡献\n        Success, // 成功：已达到筹款目标\n        Failed, // 失败：截止时间已到但未达到目标\n        Closed // 已关闭：资金已提取（仅适用于成功的活动）\n    }\n\n    /// @dev 当前活动\n    State public state;\n\n    /// @dev 活动创建者地址\n    address public immutable owner;\n\n    /// @dev 活动名称\n    string public name;\n\n    /// @dev 众筹目标金额\n    uint public immutable goal;\n\n    /// @dev 活动截止时间\n    uint public immutable deadline;\n\n    /// @dev 已经筹到的钱\n    uint public totalRaised;\n\n    /// @dev 贡献者名单和金额\n    mapping(address => uint) public contributions;\n\n    /// @dev 所有贡献者名单\n    address[] public contributors;\n\n    /// @dev 所有者\n    modifier onlyOwner() {\n        require(msg.sender == owner, \"CrowdfundingCampaign not owner\");\n        _;\n    }\n\n    /// @dev 状态检查\n    modifier inState(State _state) {\n        require(state == _state, \"CrowdfundingCampaign invalid state\");\n        _;\n    }\n\n    /// @dev 是否过期\n    modifier notExpired() {\n        require(block.timestamp < deadline, \"CrowdfundingCampaign expired\");\n        _;\n    }\n\n    constructor(\n        address _owner,\n        string memory _name,\n        uint _goal,\n        uint _durationInDays\n    ) {\n        require(\n            _owner != address(0),\n            \"CrowdfundingCampaign constructor invalid owner\"\n        );\n        require(\n            bytes(_name).length > 0,\n            \"CrowdfundingCampaign constructor invalid name\"\n        );\n        require(\n            _goal > 0,\n            \"CrowdfundingCampaign constructor goal must be positive\"\n        );\n        // 验证持续时间必须在1-90天之间\n        require(\n            _durationInDays > 0 && _durationInDays <= 90,\n            \"CrowdfundingCampaign constructor invalid duration\"\n        );\n        owner = _owner;\n        name = _name;\n        goal = _goal;\n        deadline = block.timestamp + (_durationInDays * 1 days);\n        state = State.Preparing;\n    }\n}\n"
+      },
+      "project/contracts/CrowdfundingFactory.sol": {
+        "content": "// SPDX-License-Identifier: MIT\n\npragma solidity ^0.8.24;\n\nimport \"./CrowdfundingCampaign.sol\";\n\n/**\n *\n * @title 众筹合约工厂\n * @author 用于创建和管理多个众筹合约\n * @notice 使用工厂模式\n */\ncontract CrowdfundingFactory {\n    /// @dev 所有已创建的众筹合约\n    CrowdfundingCampaign[] public campaigns;\n\n    /// @dev 用户的合约地址的索引,campaigns数组的索引位\n    mapping(address => uint[]) public userCampaigns;\n\n    /// @dev 创建众筹合约时触发的事件\n    event CampaignCreated(\n        address indexed creator,\n        address indexed campaign,\n        string name,\n        uint goal,\n        uint durationInDays\n    );\n\n    /**\n     *  创建一个众筹合约\n     * @param _name  众筹名称\n     * @param _goal  额度\n     * @param _durationInDays 众筹时间\n     */\n    function createCampaign(\n        string memory _name,\n        uint _goal,\n        uint _durationInDays\n    ) external returns (address) {\n        //创建众筹合约\n        CrowdfundingCampaign campaign = new CrowdfundingCampaign(\n            msg.sender,\n            _name,\n            _goal,\n            _durationInDays\n        );\n\n        //添加到全量众筹\n        campaigns.push(campaign);\n\n        //将索引存起来\n        uint[] storage cs = userCampaigns[msg.sender];\n        cs.push(campaigns.length - 1);\n\n        //触发创建事件\n        emit CampaignCreated(\n            msg.sender,\n            address(campaign),\n            _name,\n            _goal,\n            _durationInDays\n        );\n\n        return address(campaign);\n    }\n\n    /**\n     * 获取所有的众筹地址\n     */\n    function getCampaigns() external view returns (address[] memory) {\n        address[] memory result = new address[](campaigns.length);\n\n        for (uint i = 0; i < campaigns.length; i++) {\n            result[i] = address(campaigns[i]);\n        }\n\n        return result;\n    }\n\n    /**\n     *\n     * 获取用户所有的合约\n     * @param user 用户地址\n     */\n    function getUserCampaigns(\n        address user\n    ) external view returns (address[] memory) {\n        uint256[] memory indices = userCampaigns[user];\n        address[] memory result = new address[](indices.length);\n\n        for (uint i = 0; i < indices.length; i++) {\n            result[i] = address(campaigns[indices[i]]);\n        }\n\n        return result;\n    }\n\n    /**\n     * @dev 获取活动总数\n     * @return 已创建的活动总数\n     * @notice 返回工厂合约创建的所有活动数量\n     */\n    function getCampaignCount() external view returns (uint256) {\n        return campaigns.length;\n    }\n}\n"
+      }
+    }
+  }
+}

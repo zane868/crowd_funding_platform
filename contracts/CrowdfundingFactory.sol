@@ -63,4 +63,44 @@ contract CrowdfundingFactory {
 
         return address(campaign);
     }
+
+    /**
+     * 获取所有的众筹地址
+     */
+    function getCampaigns() external view returns (address[] memory) {
+        address[] memory result = new address[](campaigns.length);
+
+        for (uint i = 0; i < campaigns.length; i++) {
+            result[i] = address(campaigns[i]);
+        }
+
+        return result;
+    }
+
+    /**
+     *
+     * 获取用户所有的合约
+     * @param user 用户地址
+     */
+    function getUserCampaigns(
+        address user
+    ) external view returns (address[] memory) {
+        uint256[] memory indices = userCampaigns[user];
+        address[] memory result = new address[](indices.length);
+
+        for (uint i = 0; i < indices.length; i++) {
+            result[i] = address(campaigns[indices[i]]);
+        }
+
+        return result;
+    }
+
+    /**
+     * @dev 获取活动总数
+     * @return 已创建的活动总数
+     * @notice 返回工厂合约创建的所有活动数量
+     */
+    function getCampaignCount() external view returns (uint256) {
+        return campaigns.length;
+    }
 }
